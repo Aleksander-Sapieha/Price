@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <python3.12/Python.h>
 #include <stdlib.h>
+#include "convert.hpp"
 
 using json = nlohmann::json;
 
@@ -24,55 +25,6 @@ void setNonBlocking(bool enable) {
         tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
         fcntl(STDIN_FILENO, F_SETFL, 0);
     }
-}
-
-float convertPLNtoUSD(float plnAmount) {
-    float result = 0.0;
-
-    PyObject* pName, *pModule, *pFunc;
-    PyObject* pArgs, *pValue;
-
-    Py_Initialize();
-
-    // Add current directory to Python path so it finds currency_converter.py
-    PyRun_SimpleString("import sys");
-    PyRun_SimpleString("sys.path.append(\".\")");
-
-    pName = PyUnicode_DecodeFSDefault("include.currency");
-    pModule = PyImport_Import(pName);
-    Py_DECREF(pName);
-
-    if (pModule != nullptr) {
-        pFunc = PyObject_GetAttrString(pModule, "changeCurrency");
-        if (pFunc && PyCallable_Check(pFunc)) {
-            // Build arguments tuple for Python function (single float argument)
-            pArgs = PyTuple_New(1);
-            pValue = PyFloat_FromDouble(plnAmount);
-            PyTuple_SetItem(pArgs, 0, pValue);  // pValue reference stolen here
-
-            pValue = PyObject_CallObject(pFunc, pArgs);
-            Py_DECREF(pArgs);
-
-            if (pValue != nullptr) {
-                result = (float)PyFloat_AsDouble(pValue);
-                Py_DECREF(pValue);
-            } else {
-                PyErr_Print();
-                std::cerr << "Call failed\n";
-            }
-        } else {
-            if (PyErr_Occurred()) PyErr_Print();
-            std::cerr << "Cannot find function 'convert_to_usd'\n";
-        }
-        Py_XDECREF(pFunc);
-        Py_DECREF(pModule);
-    } else {
-        PyErr_Print();
-        std::cerr << "Failed to load 'currency_converter' module\n";
-    }
-
-    Py_Finalize();
-    return result;
 }
 
 // Display the menu
@@ -111,7 +63,8 @@ int main() {
     if (curChoice == "1" || curChoice == "USD"){
         currency = "USD";
         multiplier = convertPLNtoUSD(multiplier);
-
+    }else{
+        currency = "PLN";
     }
 
     while (true){
